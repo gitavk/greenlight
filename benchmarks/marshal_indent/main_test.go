@@ -21,4 +21,3 @@ func BenchmarkMarshal(b *testing.B) {
 		healthcheckHandlerMarshal(w, r)
 	}
 }
-
