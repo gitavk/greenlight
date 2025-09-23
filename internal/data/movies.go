@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gitavk/greenlight/internal/validator"
+	"github.com/lib/pq"
 )
 
 type Movie struct {
@@ -24,7 +25,19 @@ type MovieModel struct {
 
 // Add a placeholder method for inserting a new record in the movies table.
 func (m MovieModel) Insert(movie *Movie) error {
-	return nil
+	query := `
+          INSERT INTO movies (title, year, runtime, genres) 
+          VALUES ($1, $2, $3, $4)
+          RETURNING id, created_at, version`
+	// Create an args slice containing the values for the placeholder parameters.
+	// Declaring this slice immediately next to our SQL query helps to make it nice
+	// and clear *what values are being used where* in the query.
+	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
+
+	// Use the QueryRow() method to execute the SQL query on our connection pool,
+	// passing in the elements of the args slice as variadic arguments and scanning
+	// the system-generated id, created_at and version values into the movie struct.
+	return m.DB.QueryRow(query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 }
 
 // Add a placeholder method for fetching a specific record from the movies table.
