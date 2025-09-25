@@ -36,10 +36,10 @@ func (m MovieModel) Insert(movie *Movie) error {
 	// and clear *what values are being used where* in the query.
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
 
-	// Use the QueryRow() method to execute the SQL query on our connection pool,
-	// passing in the elements of the args slice as variadic arguments and scanning
-	// the system-generated id, created_at and version values into the movie struct.
-	return m.DB.QueryRow(query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	return m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 }
 
 // Add a placeholder method for fetching a specific record from the movies table.
@@ -48,22 +48,15 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 		return nil, ErrRecordNotFound
 	}
 	query := `
-        SELECT pg_sleep(8), id, created_at, title, year, runtime, genres, version
+        SELECT id, created_at, title, year, runtime, genres, version
         FROM movies
         WHERE id = $1`
 	var movie Movie
 
-	// Use the context.WithTimeout() function to create a context.Context which carries a
-	// 3-second timeout deadline. Note that we're using the empty context.Background()
-	// as the 'parent' context.
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-
-	// Importantly, use defer to make sure that we cancel the context before the Get()
-	// method returns.
 	defer cancel()
 
 	err := m.DB.QueryRowContext(ctx, query, id).Scan(
-		&[]byte{}, // Add this line to make pg_sleep demo.
 		&movie.ID,
 		&movie.CreatedAt,
 		&movie.Title,
@@ -108,7 +101,10 @@ func (m MovieModel) Update(movie *Movie) error {
 		movie.Version,
 	}
 
-	err := m.DB.QueryRow(query, args...).Scan(&movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -133,10 +129,10 @@ func (m MovieModel) Delete(id int64) error {
         DELETE FROM movies
         WHERE id = $1`
 
-	// Execute the SQL query using the Exec() method, passing in the id variable as
-	// the value for the placeholder parameter. The Exec() method returns a sql.Result
-	// value.
-	result, err := m.DB.Exec(query, id)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result, err := m.DB.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
