@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -47,12 +48,22 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 		return nil, ErrRecordNotFound
 	}
 	query := `
-        SELECT id, created_at, title, year, runtime, genres, version
+        SELECT pg_sleep(8), id, created_at, title, year, runtime, genres, version
         FROM movies
         WHERE id = $1`
 	var movie Movie
 
-	err := m.DB.QueryRow(query, id).Scan(
+	// Use the context.WithTimeout() function to create a context.Context which carries a
+	// 3-second timeout deadline. Note that we're using the empty context.Background()
+	// as the 'parent' context.
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+
+	// Importantly, use defer to make sure that we cancel the context before the Get()
+	// method returns.
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+		&[]byte{}, // Add this line to make pg_sleep demo.
 		&movie.ID,
 		&movie.CreatedAt,
 		&movie.Title,
