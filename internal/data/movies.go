@@ -25,6 +25,49 @@ type MovieModel struct {
 	DB *sql.DB
 }
 
+func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*Movie, error) {
+	// Construct the SQL query to retrieve all movie records.
+	query := `
+        SELECT id, created_at, title, year, runtime, genres, version
+        FROM movies
+        ORDER BY id`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	// Use QueryContext() to execute the query. This returns a sql.Rows resultset
+	// containing the result.
+	rows, err := m.DB.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	movies := []*Movie{}
+	for rows.Next() {
+		var movie Movie
+		err := rows.Scan(
+			&movie.ID,
+			&movie.CreatedAt,
+			&movie.Title,
+			&movie.Year,
+			&movie.Runtime,
+			pq.Array(&movie.Genres),
+			&movie.Version,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Add the Movie struct to the slice.
+		movies = append(movies, &movie)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return movies, nil
+}
+
 // Add a placeholder method for inserting a new record in the movies table.
 func (m MovieModel) Insert(movie *Movie) error {
 	query := `
