@@ -3,25 +3,69 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"sync"
+	"time"
 
+	"github.com/tomasen/realip"
 	"golang.org/x/time/rate"
 )
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
-	// Initialize a new rate limiter which allows an average of 2 requests per second,
-	// with a maximum of 4 requests in a single 'burst'.
-	limiter := rate.NewLimiter(2, 4)
+	type client struct {
+		limiter  *rate.Limiter
+		lastSeen time.Time
+	}
+
+	var (
+		mu      sync.Mutex
+		clients = make(map[string]*client)
+	)
+
+	// Launch a background goroutine which removes old entries from the clients map once
+	// every minute.
+	go func() {
+		for {
+			time.Sleep(time.Minute)
+
+			// Lock the mutex to prevent any rate limiter checks from happening while
+			// the cleanup is taking place.
+			mu.Lock()
+
+			// Loop through all clients. If they haven't been seen within the last three
+			// minutes, delete the corresponding entry from the map.
+			for ip, client := range clients {
+				if time.Since(client.lastSeen) > 3*time.Minute {
+					delete(clients, ip)
+				}
+			}
+
+			// Importantly, unlock the mutex when the cleanup is complete.
+			mu.Unlock()
+		}
+	}()
 
 	// The function we are returning is a closure, which 'closes over' the limiter
 	// variable.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := realip.FromRequest(r)
+
+		mu.Lock()
+
+		if _, found := clients[ip]; !found {
+			clients[ip] = &client{limiter: rate.NewLimiter(2, 4)}
+		}
+		clients[ip].lastSeen = time.Now()
+
 		// Call limiter.Allow() to see if the request is permitted, and if it's not,
 		// then we call the rateLimitExceededResponse() helper to return a 429 Too Many
 		// Requests response (we will create this helper in a minute).
-		if !limiter.Allow() {
+		if !clients[ip].limiter.Allow() {
+			mu.Unlock()
 			app.rateLimitExceededResponse(w, r)
 			return
 		}
+
+		mu.Unlock()
 
 		next.ServeHTTP(w, r)
 	})
