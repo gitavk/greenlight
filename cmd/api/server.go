@@ -31,14 +31,7 @@ func (app *application) serve() error {
 	go func() {
 		// Create a quit channel which carries os.Signal values.
 		quit := make(chan os.Signal, 1)
-
-		// Use signal.Notify() to listen for incoming SIGINT and SIGTERM signals and
-		// relay them to the quit channel. Any other signals will not be caught by
-		// signal.Notify() and will retain their default behavior.
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-		// Read the signal from the quit channel. This code will block until a signal is
-		// received.
 		s := <-quit
 
 		app.logger.Info("shutting down server", "signal", s.String())
