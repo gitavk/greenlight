@@ -11,4 +11,9 @@ require golang.org/x/time v0.13.0
 
 require github.com/tomasen/realip v0.0.0-20180522021738-f0c99a92ddce
 
-require golang.org/x/crypto v0.42.0
+require (
+	github.com/wneessen/go-mail v0.7.2
+	golang.org/x/crypto v0.42.0
+)
+
+require golang.org/x/text v0.29.0 // indirect
