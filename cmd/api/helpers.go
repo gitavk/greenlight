@@ -14,6 +14,23 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// The background() helper accepts an arbitrary function as a parameter.
+func (app *application) background(fn func()) {
+	// Launch a background goroutine.
+	go func() {
+		// Recover any panic.
+		defer func() {
+			pv := recover()
+			if pv != nil {
+				app.logger.Error(fmt.Sprintf("%v", pv))
+			}
+		}()
+
+		// Execute the arbitrary function that we passed as the parameter.
+		fn()
+	}()
+}
+
 // The readString() helper returns a string value from the query string, or the provided
 // default value if no matching key could be found.
 func (app *application) readString(qs url.Values, key string, defaultValue string) string {
