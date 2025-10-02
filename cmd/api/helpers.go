@@ -17,7 +17,7 @@ import (
 // The background() helper accepts an arbitrary function as a parameter.
 func (app *application) background(fn func()) {
 	// Launch a background goroutine.
-	go func() {
+	app.wg.Go(func() {
 		// Recover any panic.
 		defer func() {
 			pv := recover()
@@ -28,7 +28,7 @@ func (app *application) background(fn func()) {
 
 		// Execute the arbitrary function that we passed as the parameter.
 		fn()
-	}()
+	})
 }
 
 // The readString() helper returns a string value from the query string, or the provided
