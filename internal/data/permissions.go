@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"slices"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Define a Permissions slice, which we will use to hold the permission codes (such as
@@ -22,10 +24,18 @@ type PermissionModel struct {
 	DB *sql.DB
 }
 
-// The GetAllForUser() method returns all permission codes for a specific user in a
-// Permissions slice. The code in this method should feel very familiar --- it uses the
-// standard pattern that we've already seen before for retrieving multiple data rows in
-// an SQL query.
+func (m PermissionModel) AddForUser(userID int64, codes ...string) error {
+	query := `
+        INSERT INTO users_permissions
+        SELECT $1, permissions.id FROM permissions WHERE permissions.code = ANY($2)`
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	_, err := m.DB.ExecContext(ctx, query, userID, pq.Array(codes))
+	return err
+}
+
 func (m PermissionModel) GetAllForUser(userID int64) (Permissions, error) {
 	query := `
         SELECT permissions.code
