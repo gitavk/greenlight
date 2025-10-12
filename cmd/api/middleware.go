@@ -5,6 +5,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -15,31 +16,60 @@ import (
 	"golang.org/x/time/rate"
 )
 
+type metricsResponseWriter struct {
+	wrapped       http.ResponseWriter
+	statusCode    int
+	headerWritten bool
+}
+
+func newMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
+	return &metricsResponseWriter{
+		wrapped:    w,
+		statusCode: http.StatusOK,
+	}
+}
+
+func (mw *metricsResponseWriter) Header() http.Header {
+	return mw.wrapped.Header()
+}
+
+func (mw *metricsResponseWriter) WriteHeader(statusCode int) {
+	mw.wrapped.WriteHeader(statusCode)
+
+	if !mw.headerWritten {
+		mw.statusCode = statusCode
+		mw.headerWritten = true
+	}
+}
+
+func (mw *metricsResponseWriter) Write(b []byte) (int, error) {
+	mw.headerWritten = true
+	return mw.wrapped.Write(b)
+}
+
+func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
+	return mw.wrapped
+}
+
 func (app *application) metrics(next http.Handler) http.Handler {
 	// Initialize the new expvar variables when the middleware chain is first built.
 	var (
 		totalRequestsReceived           = expvar.NewInt("total_requests_received")
 		totalResponsesSent              = expvar.NewInt("total_responses_sent")
 		totalProcessingTimeMicroseconds = expvar.NewInt("total_processing_time_μs")
+		totalResponsesSentByStatus      = expvar.NewMap("total_responses_sent_by_status")
 	)
 
 	// The following code will be run for every request...
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Record the time that we started to process the request.
 		start := time.Now()
 
-		// Use the Add() method to increment the number of requests received by 1.
 		totalRequestsReceived.Add(1)
-
-		// Call the next handler in the chain.
-		next.ServeHTTP(w, r)
-
-		// On the way back up the middleware chain, increment the number of responses
-		// sent by 1.
+		mw := newMetricsResponseWriter(w)
+		next.ServeHTTP(mw, r)
 		totalResponsesSent.Add(1)
 
-		// Calculate the number of microseconds since we began to process the request,
-		// then increment the total processing time by this amount.
+		totalResponsesSentByStatus.Add(strconv.Itoa(mw.statusCode), 1)
 		duration := time.Since(start).Microseconds()
 		totalProcessingTimeMicroseconds.Add(duration)
 	})
