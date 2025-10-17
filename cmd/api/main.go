@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"expvar"
 	"flag"
+	"fmt"
 	"log/slog"
 	"os"
 	"runtime"
@@ -14,13 +15,13 @@ import (
 
 	"github.com/gitavk/greenlight/internal/data"
 	"github.com/gitavk/greenlight/internal/mailer"
+	"github.com/gitavk/greenlight/internal/vcs"
 	_ "github.com/lib/pq"
 )
 
-// Declare a string containing the application version number. Later in the book we'll
-// generate this automatically at build time, but for now we'll just store the version
-// number as a hard-coded global constant.
-const version = "1.0.0"
+var (
+	version = vcs.Version()
+)
 
 // Define a config struct to hold all the configuration settings for our application.
 // For now, the only configuration settings will be the network port that we want the
@@ -98,8 +99,17 @@ func main() {
 		return nil
 	})
 
+	// Create a new version boolean flag with the default value of false.
+	displayVersion := flag.Bool("version", false, "Display version and exit")
+
 	flag.Parse()
 
+	// If the version flag value is true, then print out the version number and
+	// immediately exit.
+	if *displayVersion {
+		fmt.Printf("Version:\t%s\n", version)
+		os.Exit(0)
+	}
 	// Initialize a new structured logger which writes log entries to the standard out
 	// stream.
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
